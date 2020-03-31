@@ -536,7 +536,7 @@ static int do_post_test(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[
 				break;
 			}
 		default:
-			printf("unknown build variant %d.  Using basic test\n");
+			printf("unknown build variant %d.  Using basic test\n", build_variant);
 			printf("R37: %d\n", opt_r37);
 			printf("R36: %d\n", opt_r36);
 			printf("R34: %d\n", opt_r34);
