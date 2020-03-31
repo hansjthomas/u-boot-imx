@@ -211,6 +211,7 @@
 	"fi" 
 
 #define CONFIG_EXTRA_ENV_SETTINGS \
+	"uimage=/boot/uImage\0" \
 	"initrd_high=0xffffffff\0" \
 	"fdtaddr=0x18000000\0" \
 	"fdt_high=0xffffffff\0" \
@@ -225,43 +226,53 @@
 		"sf erase 0x100000 0x2000;" \
 		"sf erase 0x180000 0x2000;" \
 		"echo restored environment to factory default; fi\0" \
-	"sdboot=echo Booting from the SD card ...;" \
-		"if load mmc 0:1 ${loadaddr} /boot/boot.ub;" \
-			"then echo Booting from custom /boot/boot.ub;" \
-			"source ${loadaddr};" \
-		"fi;" \
-		"if load mmc 0:1 ${loadaddr} /boot/ts7970-fpga.vme;" \
+	"findfdt=" \
+		"if test $rev > 'E'; then " \
+			"if load ${bootdev} ${bootpart} ${fdtaddr} /boot/imx6${cpu}-ts7970-revf.dtb; then " \
+				"echo Loaded TS-7970 REV F dtb;" \
+			"elif load ${bootdev} ${bootpart} ${fdtaddr} /boot/imx6${cpu}-ts7970.dtb; then " \
+				"echo Booting TS-7970 dtb;" \
+			"fi;" \
+		"else " \
+			"if load ${bootdev} ${bootpart} ${fdtaddr} /boot/imx6${cpu}-ts7970.dtb; then " \
+				"echo Booting TS-7970 dtb;" \
+			"fi;" \
+		"fi;\0" \
+	"bootlinux=if load ${bootdev} ${bootpart} ${loadaddr} /boot/boot.ub; " \
+			"then echo Booting from custom /boot/boot.ub; " \
+			"source ${loadaddr}; " \
+		"fi; " \
+		"run findfdt; " \
+		"if load ${bootdev} ${bootpart} ${loadaddr} /boot/ts7970-fpga.vme; " \
 			"then fpga load 0 ${loadaddr} ${filesize};" \
+		"else " \
+			"echo Using default built in FPGA;" \
 		"fi;" \
-		"load mmc 0:1 ${fdtaddr} /boot/imx6${cpu}-ts7970.dtb;" \
-		"load mmc 0:1 ${loadaddr} /boot/uImage;" \
-		"setenv bootargs root=/dev/mmcblk1p1 ${cmdline_append};" \
+		"load ${bootdev} ${bootpart} ${loadaddr} ${uimage}; " \
+		"setenv bootargs root=${rootdev} rootwait rw ${cmdline_append}; " \
 		"bootm ${loadaddr} - ${fdtaddr};\0" \
-	"emmcboot=echo Booting from the eMMC ...;" \
-		"if load mmc 1:1 ${loadaddr} /boot/boot.ub;" \
-			"then echo Booting from custom /boot/boot.ub;" \
-			"source ${loadaddr};" \
-		"fi;" \
-		"if load mmc 1:1 ${loadaddr} /boot/ts7970-fpga.vme;" \
-			"then fpga load 0 ${loadaddr} ${filesize};" \
-		"fi;" \
-		"load mmc 1:1 ${fdtaddr} /boot/imx6${cpu}-ts7970.dtb;" \
-		"load mmc 1:1 ${loadaddr} /boot/uImage;" \
-		"setenv bootargs root=/dev/mmcblk2p1 ${cmdline_append};" \
-		"bootm ${loadaddr} - ${fdtaddr};\0" \
-	"sataboot=echo Booting from SATA ...;" \
-		"sata init;" \
-		"if load sata 0:1 ${loadaddr} /boot/boot.ub;" \
-			"then echo Booting from custom /boot/boot.ub;" \
-			"source ${loadaddr};" \
-		"fi;" \
-		"if load sata 0:1 ${loadaddr} /boot/ts7970-fpga.vme;" \
-			"then fpga load 0 ${loadaddr} ${filesize};" \
-		"fi;" \
-		"load sata 0:1 ${fdtaddr} /boot/imx6${cpu}-ts7970.dtb;" \
-		"load sata 0:1 ${loadaddr} /boot/uImage;" \
-		"setenv bootargs root=/dev/sda1 rootwait ${cmdline_append};" \
-		"bootm ${loadaddr} - ${fdtaddr};\0" \
+	"sdboot=echo Booting from the SD card ...; " \
+		"env set bootdev mmc; " \
+		"env set bootpart 0:1; " \
+		"env set rootdev '/dev/mmcblk1p1'; " \
+		"run bootlinux;\0" \
+	"emmcboot=echo Booting from the eMMC ...; " \
+		"env set bootdev mmc; " \
+		"env set bootpart 1:1; " \
+		"env set rootdev '/dev/mmcblk2p1'; " \
+		"run bootlinux;\0" \
+	"sataboot=echo Booting from SATA ...; " \
+		"env set bootdev sata; " \
+		"env set bootpart 0:1; " \
+		"env set rootdev '/dev/sda1'; " \
+		"sata init; " \
+		"run bootlinux;\0" \
+	"usbboot=echo Booting from USB ...; " \
+		"env set bootdev usb; " \
+		"env set bootpart 0:1; " \
+		"env set rootdev '/dev/sda1'; " \
+		"usb start; " \
+		"run bootlinux;\0" \
 	"usbprod=usb start;" \
 		"if usb storage;" \
 			"then echo Checking USB storage for updates;" \
@@ -274,11 +285,10 @@
 		"fi;\0" \
 	"nfsboot=echo Booting from NFS ...;" \
 		"dhcp;" \
-		"nfs ${fdtaddr} ${nfsroot}/boot/imx6${cpu}-ts7970.dtb;" \
+		"nfs ${fdtaddr} ${nfsroot}/boot/imx6${cpu}-ts7970-revf.dtb;" \
 		"nfs ${loadaddr} ${nfsroot}/boot/uImage;" \
-		"setenv bootargs root=/dev/nfs ip=dhcp nfsroot=${nfsroot} " \
-			"${cmdline_append};" \
-		"bootm ${loadaddr} - ${fdtaddr}; \0"
+		"setenv bootargs root=/dev/nfs ip=dhcp nfsroot=${nfsroot} ${cmdline_append};" \
+		"bootm ${loadaddr} - ${fdtaddr};\0"
 
 #define CONFIG_BOOTCOMMAND \
 	"if test ${jpsdboot} = 'on';" \

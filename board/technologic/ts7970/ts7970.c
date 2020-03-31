@@ -57,6 +57,15 @@
 #define TS7970_FPGARST		IMX_GPIO_NR(5, 20)
 #define TS7970_REVB		IMX_GPIO_NR(7, 1)
 #define TS7970_REVD		IMX_GPIO_NR(7, 0)
+#define TS7970_REVG		IMX_GPIO_NR(1, 29)
+#define TS7970_WIFI_EN		IMX_GPIO_NR(1, 26)
+#define TS7970_BT_EN		IMX_GPIO_NR(1, 27)
+#define TS7970_SD1_D0		IMX_GPIO_NR(1, 16)
+#define TS7970_SD1_D1		IMX_GPIO_NR(1, 17)
+#define TS7970_SD1_D2		IMX_GPIO_NR(1, 19)
+#define TS7970_SD1_D3		IMX_GPIO_NR(1, 21)
+#define TS7970_SD1_CMD		IMX_GPIO_NR(1, 18)
+#define TS7970_SD1_CLK		IMX_GPIO_NR(1, 20)
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -95,6 +104,19 @@ iomux_v3_cfg_t const misc_pads[] = {
 	MX6_PAD_CSI0_DATA_EN__GPIO5_IO20 | MUX_PAD_CTRL(NO_PAD_CTRL),	 // FPGA_RESET
 	MX6_PAD_SD3_DAT4__GPIO7_IO01 | MUX_PAD_CTRL(UART_PAD_CTRL),	 // REV B strap
 	MX6_PAD_SD3_DAT5__GPIO7_IO00 | MUX_PAD_CTRL(UART_PAD_CTRL),	 // REV C strap
+	MX6_PAD_ENET_TXD1__GPIO1_IO29 | MUX_PAD_CTRL(NO_PAD_CTRL), 	 // Rev G strap
+};
+
+/* WIFI */
+iomux_v3_cfg_t const usdhc1_pads[] = {
+	MX6_PAD_SD1_CMD__SD1_CMD	| MUX_PAD_CTRL(USDHC_PAD_CTRL),
+	MX6_PAD_SD1_CLK__SD1_CLK	| MUX_PAD_CTRL(USDHC_PAD_CTRL),
+	MX6_PAD_SD1_DAT0__SD1_DATA0	| MUX_PAD_CTRL(USDHC_PAD_CTRL),
+	MX6_PAD_SD1_DAT1__SD1_DATA1	| MUX_PAD_CTRL(USDHC_PAD_CTRL),
+	MX6_PAD_SD1_DAT2__SD1_DATA2	| MUX_PAD_CTRL(USDHC_PAD_CTRL),
+	MX6_PAD_SD1_DAT3__SD1_DATA3	| MUX_PAD_CTRL(USDHC_PAD_CTRL),
+	MX6_PAD_ENET_RXD0__GPIO1_IO27 	| MUX_PAD_CTRL(USDHC_PAD_CTRL),
+	MX6_PAD_ENET_RXD1__GPIO1_IO26	| MUX_PAD_CTRL(USDHC_PAD_CTRL),
 };
 
 /* SD card */
@@ -263,20 +285,34 @@ struct i2c_pads_info i2c_pad_info0 = {
 char board_rev(void)
 {
 	static int rev = -1;
+	struct ocotp_regs *ocotp = (struct ocotp_regs *)OCOTP_BASE_ADDR;
+	struct fuse_bank *bank = &ocotp->bank[4];
+	struct fuse_bank4_regs *fuse =
+			(struct fuse_bank4_regs *)bank->fuse_regs;
 
 	if(rev == -1) {
 		gpio_direction_input(TS7970_REVB);
 		/* REV C boards were never built */
 		gpio_direction_input(TS7970_REVD);
+		gpio_direction_input(TS7970_REVG);
 
-		if(!gpio_get_value(TS7970_REVB)){
-			if(!gpio_get_value(TS7970_REVD)){
-				rev = 'D';
-			} else {
-				rev = 'B';
-			}
+		if(!gpio_get_value(TS7970_REVG)) {
+			rev = 'G';
 		} else {
-			rev = 'A';
+			/* If GP1 bit 0 is set, REV F */
+			u32 val = readl(&fuse->gp1);
+			if(val & 0x1) {
+				rev = 'F';
+			} else if(!gpio_get_value(TS7970_REVB)){
+				if(!gpio_get_value(TS7970_REVD)){
+					/* Cannot tell between REV D/E. */
+					rev = 'D';
+				} else {
+					rev = 'B';
+				}
+			} else {
+				rev = 'A';
+			}
 		}
 	}
 
@@ -336,19 +372,7 @@ struct fsl_esdhc_cfg usdhc_cfg[2] = {
 
 int board_mmc_getcd(struct mmc *mmc)
 {
-	struct fsl_esdhc_cfg *cfg = (struct fsl_esdhc_cfg *)mmc->priv;
-	int ret = 0;
-
-	switch (cfg->esdhc_base) {
-	case USDHC2_BASE_ADDR: // SD
-		ret = 1;
-		break;
-	case USDHC3_BASE_ADDR: // MMC
-		ret = 1;
-		break;
-	}
-
-	return ret;
+	return 1;
 }
 
 int board_mmc_init(bd_t *bis)
@@ -543,6 +567,7 @@ int board_early_init_f(void)
 
 int misc_init_r(void)
 {
+	char rev[2] = {0, 0};
 	uint8_t val[32];
 	int sdboot = 0;
 	struct iomuxc *iomuxc_regs = (struct iomuxc *)IOMUXC_BASE_ADDR;
@@ -587,6 +612,9 @@ int misc_init_r(void)
 
 	setenv_hex("reset_cause", get_imx_reset_cause());
 
+	rev[0] = board_rev();
+	setenv("rev", rev);
+
 	i2c_read(0x28, 51, 2, val, 1);
 	printf("FPGA Rev: %d\n", val[0] >> 4);
 
@@ -617,6 +645,23 @@ int board_init(void)
 
 int board_late_init(void)
 {
+	char rev = board_rev();
+	if(rev >= 'D') {
+		gpio_direction_output(TS7970_WIFI_EN, 0);
+		gpio_direction_output(TS7970_BT_EN, 0);
+		gpio_direction_input(TS7970_SD1_D0);
+		gpio_direction_input(TS7970_SD1_D1);
+		gpio_direction_input(TS7970_SD1_D2);
+		gpio_direction_input(TS7970_SD1_D3);
+		gpio_direction_input(TS7970_SD1_CLK);
+		gpio_direction_input(TS7970_SD1_CMD);
+		mdelay(5);
+		gpio_set_value(TS7970_WIFI_EN, 1);
+		gpio_set_value(TS7970_BT_EN, 1);
+		imx_iomux_v3_setup_multiple_pads(usdhc1_pads,
+			ARRAY_SIZE(usdhc1_pads));
+	}
+
 	return 0;
 }
 
