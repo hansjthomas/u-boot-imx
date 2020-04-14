@@ -410,7 +410,7 @@ config TARGET_MX6UL_ENGICAM
 	select SUPPORT_SPL
 	imply CMD_DM
 
-config CONFIG_TARGET_TS7250V3
+config TARGET_TS7250V3
 	bool "Support for Technologic Systems TS-7250-V3"
 	select MX6UL
 	select BOARD_LATE_INIT

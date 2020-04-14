@@ -1,4 +1,4 @@
-if CONFIG_TARGET_TS7250V3
+if TARGET_TS7250V3
 
 config SYS_BOARD
 	default "ts7250v3"
