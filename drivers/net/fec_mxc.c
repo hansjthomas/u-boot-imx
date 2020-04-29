@@ -1049,6 +1049,17 @@ static int fec_probe(bd_t *bd, int dev_id, uint32_t base_addr,
 		if (!getenv("ethaddr"))
 			eth_setenv_enetaddr("ethaddr", ethaddr);
 	}
+
+
+#if (CONFIG_HAS_ETH1 == 1)
+	dev_id = (dev_id == 0)?1:0;
+        if (fec_get_hwaddr(edev, dev_id, ethaddr) == 0) {
+                debug("got MAC%d address from fuse: %pM\n", dev_id, ethaddr);
+                if (!getenv("eth1addr"))
+                        eth_setenv_enetaddr("eth1addr", ethaddr);
+        }
+#endif
+
 	return ret;
 err4:
 	fec_free_descs(fec);
