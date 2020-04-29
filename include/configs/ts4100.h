@@ -345,6 +345,8 @@
 
 #define CONFIG_PHYLIB
 #define CONFIG_PHY_MICREL
+
+#define CONFIG_HAS_ETH1			1
 #endif
 
 #endif /* __TS4100_CONFIG_H */
