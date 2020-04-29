@@ -200,10 +200,10 @@ void config_opts(int bbid)
 	switch (bbid & ~0xC0) {
 	  case 0x3F: /* No BB/no ID means no valid jumpers present */
 		setenv("baseboard", "None/Unknown");
-		sdboot = !(getenv_ulong("force_jpsdboot", 10, 0) & 0x1);
+/*		sdboot = !(getenv_ulong("force_jpsdboot", 10, 0) & 0x1);*/
 		uboot = FORCE_UNSET;
-		setenv_ulong("bootdelay",
-		  getenv_ulong("force_bootdelay", 10, 1));
+/*		setenv_ulong("bootdelay",
+		  getenv_ulong("force_bootdelay", 10, 1));*/
 		nochrg = FORCE_UNSET;
 		bbsilo = NOT_PRESENT;
 		break;
